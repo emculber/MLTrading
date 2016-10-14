@@ -13,6 +13,24 @@ def normalize_data(df):
     """Normalize stock prices using the first row of the dataframe"""
     return df / df.ix[0,:]
 
+def compute_daily_returns(df):
+    """Compute and return the daily return values."""
+    daily_returns = df.copy()
+    daily_returns[1:] = (df[1:] / df[:-1].values) - 1
+    return daily_returns[1:]
+
+def compute_portfolio_stats(prices, allocs=[0.1, 0.2, 0.3, 0.4], rfr = 0.0, sf=252.0):
+    normed = prices / prices.ix[0]
+    alloced = normed * allocs
+    port_vals = alloced.sum(axis = 1)
+    daily_rets = compute_daily_returns(port_vals)
+    cr = port_vals[-1] / port_vals[0] - 1
+    adr = daily_rets.mean()
+    sddr = daily_rets.std()
+    sr = (daily_rets - rfr).mean() / (daily_rets).std() * np.sqrt(sf)
+
+    return cr, adr, sddr, sr
+
 # This is the function that will be tested by the autograder
 # The student must update this code to properly implement the functionality
 def assess_portfolio(sd = dt.datetime(2008,1,1), ed = dt.datetime(2009,1,1), \
@@ -24,10 +42,34 @@ def assess_portfolio(sd = dt.datetime(2008,1,1), ed = dt.datetime(2009,1,1), \
     # Read in adjusted closing prices for given symbols, date range
     dates = pd.date_range(sd, ed)
     prices_all = get_data(syms, dates)  # automatically adds SPY
+    prices_all_normalized = normalize_data(prices_all)
     prices = prices_all[syms]  # only portfolio symbols
-    prices_SPY = prices_all['SPY']  # only SPY, for comparison later
+    prices_normalized = prices_all_normalized[syms]  # only portfolio symbols
+    prices_SPY_normalized = prices_all_normalized['SPY']  # only SPY, for comparison later
 
+    # Get daily portfolio value
+    allocated = prices_normalized * allocs
+    position_values = allocated * sv
+    portfolio_value = position_values.sum(axis=1)
+    portfolio_value_normalized = normalize_data(portfolio_value)
 
+    # Get portfolio statistics (note: std_daily_ret = volatility)
+    # cr, adr, sddr, sr = [0.25, 0.001, 0.0005, 2.1] # add code here to compute stats
+    cr, adr, sddr, sr = compute_portfolio_stats(prices, allocs, rfr, sf)
+
+    
+    # Compare daily portfolio value with SPY using a normalized plot
+    if gen_plot:
+        # add code to plot here
+        df_temp = pd.concat([portfolio_value_normalized, prices_SPY_normalized], keys=['Portfolio', 'SPY'], axis=1)
+        plot_data(df_temp)
+        pass
+
+    # Add code here to properly compute end value
+    ev = sv * (1 + cr)
+
+    return cr, adr, sddr, sr, ev
+    
 
 def test_code():
     # This code WILL NOT be tested by the auto grader
@@ -38,8 +80,8 @@ def test_code():
     # the autograder!
     start_date = dt.datetime(2010,1,1)
     end_date = dt.datetime(2010,12,31)
-    symbols = ['AXP', 'HPQ', 'IBM', 'HNZ']
-    allocations = [0.0, 0.0, 0.0, 1.0]
+    symbols = ['GOOG', 'AAPL', 'GLD', 'XOM']
+    allocations = [0.2, 0.3, 0.4, 0.1]
     start_val = 1000000
     risk_free_rate = 0.0
     sample_freq = 252
@@ -60,6 +102,7 @@ def test_code():
     print "Volatility (stdev of daily returns):", sddr
     print "Average Daily Return:", adr
     print "Cumulative Return:", cr
+    print "ev", ev
 
 if __name__ == "__main__":
     test_code()
